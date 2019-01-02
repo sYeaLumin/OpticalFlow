@@ -39,35 +39,33 @@ void  PyrLKTracker::setNextFrame(vector<Byte>&gray)
 	swap(featurePoints, trackPoints);
 }
 
-void PyrLKTracker::pyramidSample(vector<Byte>&src_gray_data,
-	const int src_h, const int src_w, vector<Byte>& dst, int&dst_h, int&dst_w)
+void PyrLKTracker::pyramidSample(vector<Byte>&src,
+	const int srcH, const int srcW, vector<Byte>& dst, int&dstH, int&dstW)
 {
-	dst_h = src_h / 2;
-	dst_w = src_w / 2;
-	int ii = height[1];
-	int hh = width[1];
-	assert(dst_w > 3 && dst_h > 3);
-	dst.resize(dst_h*dst_w);
-	for (int i = 0; i < dst_h - 1; i++)
-		for (int j = 0; j < dst_w - 1; j++)
+	dstH = srcH / 2;
+	dstW = srcW / 2;
+	assert(dstW > 3 && dstH > 3);
+	dst.resize(dstH*dstW);
+	for (int i = 0; i < dstH - 1; i++)
+		for (int j = 0; j < dstW - 1; j++)
 		{
 			int srcY = 2 * i + 1;
 			int srcX = 2 * j + 1;
-			double re = src_gray_data[srcY*src_w + srcX] * 0.25;
-			re += src_gray_data[(srcY - 1)*src_w + srcX] * 0.125;
-			re += src_gray_data[(srcY + 1)*src_w + srcX] * 0.125;
-			re += src_gray_data[srcY*src_w + srcX - 1] * 0.125;
-			re += src_gray_data[srcY*src_w + srcX + 1] * 0.125;
-			re += src_gray_data[(srcY - 1)*src_w + srcX + 1] * 0.0625;
-			re += src_gray_data[(srcY - 1)*src_w + srcX - 1] * 0.0625;
-			re += src_gray_data[(srcY + 1)*src_w + srcX - 1] * 0.0625;
-			re += src_gray_data[(srcY + 1)*src_w + srcX + 1] * 0.0625;
-			dst[i*dst_w + j] = re;
+			double re = src[srcY*srcW + srcX] * 0.25;
+			re += src[(srcY - 1)*srcW + srcX] * 0.125;
+			re += src[(srcY + 1)*srcW + srcX] * 0.125;
+			re += src[srcY*srcW + srcX - 1] * 0.125;
+			re += src[srcY*srcW + srcX + 1] * 0.125;
+			re += src[(srcY - 1)*srcW + srcX + 1] * 0.0625;
+			re += src[(srcY - 1)*srcW + srcX - 1] * 0.0625;
+			re += src[(srcY + 1)*srcW + srcX - 1] * 0.0625;
+			re += src[(srcY + 1)*srcW + srcX + 1] * 0.0625;
+			dst[i*dstW + j] = re;
 		}
-	for (int i = 0; i < dst_h; i++)
-		dst[i*dst_w + dst_w - 1] = dst[i*dst_w + dst_w - 2];
-	for (int i = 0; i < dst_w; i++)
-		dst[(dst_h - 1)*dst_w + i] = dst[(dst_h - 2)*dst_w + i];
+	for (int i = 0; i < dstH; i++)
+		dst[i*dstW + dstW - 1] = dst[i*dstW + dstW - 2];
+	for (int i = 0; i < dstW; i++)
+		dst[(dstH - 1)*dstW + i] = dst[(dstH - 2)*dstW + i];
 }
 
 //bilinear interplotation
@@ -91,9 +89,9 @@ double PyrLKTracker::interpolator(vector<Byte>&src, int h, int w, const Point2f&
 	else
 		ceilX = floorX + 1;
 
-	if (floorY < 0) 
+	if (floorY < 0)
 		floorY = ceilY = 0;
-	else if (floorY >= h - 1) 
+	else if (floorY >= h - 1)
 		floorY = ceilY = h - 1;
 	else
 		ceilY = floorY + 1;
@@ -206,7 +204,7 @@ void PyrLKTracker::calc(vector<char>&state)
 				for (double xx = Xleft; xx < Xright + 0.001; xx += 1.0)
 					for (double yy = Yleft; yy < Yright + 0.001; yy += 1.0)
 					{
-						assert(xx < 1000 && yy < 1000 && 
+						assert(xx < 1000 && yy < 1000 &&
 							xx >= -(double)windowRadius && yy >= -(double)windowRadius);
 						double nextX = xx + g[0] + opticalflow[0];
 						double nextY = yy + g[1] + opticalflow[1];

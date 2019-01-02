@@ -26,8 +26,8 @@ private:
 	void buildPyramid(vector<vector<Byte>>&original_gray);
 	void calc(vector<char>&state);
 	void getMaxLayer(const int nh, const int nw);
-	void pyramidSample(vector<Byte>&src_gray_data, const int src_h,
-		const int src_w, vector<Byte>& dst, int&dst_h, int&dst_w);
+	void pyramidSample(vector<Byte>&src, const int srcH, const int srcW,
+		vector<Byte>& dst, int&dstH, int&dstW);
 	double interpolator(vector<Byte>&src, int h, int w, const Point2f& point);
 	void matrixInverse(double *pMatrix, double * _pMatrix, int dim);
 	bool matrixMul(double *src1, int height1, int width1, double *src2, int height2, int width2, double *dst);
@@ -43,6 +43,3 @@ public:
 	int getPyramidH(int th) { return height[th]; }
 	int getPyramidW(int th) { return width[th]; }
 };
-
-
-
