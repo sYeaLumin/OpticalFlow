@@ -34,7 +34,6 @@ int main(int argc, char** argv)
 	cap.open(input[0] - '0');
 	else
 	cap.open(input);
-	//cap.open(input);
 
 	double fps = cap.get(CV_CAP_PROP_FPS);
 	int fourcc = cap.get(CV_CAP_PROP_FOURCC);

@@ -36,13 +36,6 @@ int main(int argc, char** argv)
 	goodFeaturesToTrack(prevGray, points[0], MAX_COUNT, 0.01, 10, Mat(), 3, 3, 0, 0.04);
 	cornerSubPix(prevGray, points[0], subPixWinSize, Size(-1, -1), termcrit);
 
-	/*
-	Mat edgeImg;
-	cv::blur(prevGray, edgeImg, Size(3, 3));
-	cv::Canny(edgeImg, edgeImg, 50, 100, 3);
-	imshow("LK Demo", edgeImg);
-	cvWaitKey(0);*/
-
 	// 处理第二帧
 	frame1.copyTo(image);
 	cvtColor(image, gray, COLOR_BGR2GRAY);
