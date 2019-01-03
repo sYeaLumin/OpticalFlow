@@ -35,6 +35,14 @@ int main(int argc, char** argv)
 	cvtColor(image, prevGray, COLOR_BGR2GRAY);
 	goodFeaturesToTrack(prevGray, points[0], MAX_COUNT, 0.01, 10, Mat(), 3, 3, 0, 0.04);
 	cornerSubPix(prevGray, points[0], subPixWinSize, Size(-1, -1), termcrit);
+
+	/*
+	Mat edgeImg;
+	cv::blur(prevGray, edgeImg, Size(3, 3));
+	cv::Canny(edgeImg, edgeImg, 50, 100, 3);
+	imshow("LK Demo", edgeImg);
+	cvWaitKey(0);*/
+
 	// 处理第二帧
 	frame1.copyTo(image);
 	cvtColor(image, gray, COLOR_BGR2GRAY);
@@ -96,6 +104,11 @@ int main(int argc, char** argv)
 	cout << tracker.trackPoints.size() << endl;
 	for (size_t i = 0; i < tracker.trackPoints.size(); i++)
 	{
+		Point2f dis = tracker.featurePoints[i] - tracker.trackPoints[i];
+		float dist = dis.x * dis.x + dis.y * dis.y;
+		if (dist > 40000) {
+			cout  << i << " dist:" << dist << endl;
+		}
 		line(imageCompare, tracker.featurePoints[i], tracker.trackPoints[i], Scalar(0, 0, 255), 2);
 	}
 	imshow("My LK", imageCompare);

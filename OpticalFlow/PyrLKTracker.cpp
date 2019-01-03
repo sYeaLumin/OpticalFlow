@@ -163,7 +163,6 @@ void PyrLKTracker::calc(vector<uchar>&states)
 	{
 		float g[2] = { 0 };
 		float finalOpticalFlow[2] = { 0 };
-
 		for (int layer = maxLayer - 1; layer >= 0; layer--)
 		{
 			Point2f currPoint;
@@ -202,19 +201,25 @@ void PyrLKTracker::calc(vector<uchar>&states)
 					A12 += derivativeX * derivativeY;
 					A22 += derivativeY * derivativeY;
 				}
+			
+			float gradient[4] = { 0 };
+			gradient[0] = A11;
+			gradient[1] = gradient[2] = A12;
+			gradient[3] = A22;
+			const float FLT_SCALE = 1.f / (1 << 10);
+			A11 *= FLT_SCALE;
+			A12 *= FLT_SCALE;
+			A22 *= FLT_SCALE;
 			float D = A11*A22 - A12*A12;
 			float minEig = (A22 + A11 - std::sqrt((A11 - A22)*(A11 - A22) +
 				4.f*A12*A12)) / (2 * derivativeXs.size());
+			//std::cout << i << "\tminEig\t" << minEig << std::endl;
 			if (minEig < minEigThreshold || D < FLT_EPSILON) {
 				if (i == 0 && states[i]) {
 					states[i] = false;
 				}
 				continue;
 			}
-			float gradient[4] = { 0 };
-			gradient[0] = A11;
-			gradient[1] = gradient[2] = A12;
-			gradient[3] = A22;
 			float gradientInverse[4] = { 0 };
 			matrixInverse(gradient, gradientInverse, 2);
 
@@ -258,6 +263,13 @@ void PyrLKTracker::calc(vector<uchar>&states)
 				opticalFlow[1] += eta_k[1];
 				opticalflowResidual = abs(eta_k[0] + eta_k[1]);
 			}
+			// TODO:假设验证
+			if (fabs(opticalFlow[0]) > windowRadius || fabs(opticalFlow[1]) > windowRadius) {
+				if (layer == 0 && states[i])
+					states[i] = false;
+				continue;
+			}
+			// TODO:假设验证
 			if (layer == 0)
 			{
 				finalOpticalFlow[0] = opticalFlow[0];
