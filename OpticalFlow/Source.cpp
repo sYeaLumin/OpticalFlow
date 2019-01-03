@@ -29,7 +29,7 @@ int main(int argc, char** argv)
 	Mat gray, prevGray, image, frame;
 	vector<Point2f> points[2];
 	Mat frame0 = imread("Backyard\\frame07.png");
-	Mat frame1 = imread("Backyard\\frame08.png");
+	Mat frame1 = imread("Backyard\\frame09.png");
 	// 处理第一帧
 	frame0.copyTo(image);
 	cvtColor(image, prevGray, COLOR_BGR2GRAY);
