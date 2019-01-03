@@ -209,22 +209,12 @@ void PyrLKTracker::calc(vector<uchar>&states)
 				}
 				continue;
 			}
-
 			float gradient[4] = { 0 };
 			gradient[0] = A11;
 			gradient[1] = gradient[2] = A12;
 			gradient[3] = A22;
 			float gradientInverse[4] = { 0 };
 			matrixInverse(gradient, gradientInverse, 2);
-
-			/*
-			Mat grad(2, 2, CV_32FC1, cv::Scalar::all(0));
-			grad.at<float>(0, 0) = A11;
-			grad.at<float>(0, 1) = A12;
-			grad.at<float>(1, 0) = A12;
-			grad.at<float>(1, 1) = A22;
-			Mat gradInverse(2, 2, CV_32FC1, cv::Scalar::all(0));
-			gradInverse = grad.inv();*/
 
 			float opticalFlow[2] = { 0 };
 			float opticalflowResidual = 1;
@@ -240,7 +230,7 @@ void PyrLKTracker::calc(vector<uchar>&states)
 						states[i] = false;
 					break;
 				}
-				//Mat b_k(2, 1, CV_32FC1, cv::Scalar::all(0));
+
 				float b_k[2] = { 0 };
 				idx = 0;
 				for (float xx = xLeft; xx < xRight + 0.001; xx += 1.0)
@@ -255,8 +245,6 @@ void PyrLKTracker::calc(vector<uchar>&states)
 						float pixelDifference =
 							interpolator(prePyramid[layer], height[layer], width[layer], Point2f(xx, yy)) -
 							interpolator(nextPyramid[layer], height[layer], width[layer], Point2f(nextX, nextY));
-						// b_k.at<float>(0, 0) += pixelDifference*derivativeXs[idx];
-						// b_k.at<float>(1, 0) += pixelDifference*derivativeYs[idx];
 						b_k[0] += pixelDifference*derivativeXs[idx];
 						b_k[1] += pixelDifference*derivativeYs[idx];
 						idx++;
@@ -267,15 +255,6 @@ void PyrLKTracker::calc(vector<uchar>&states)
 				opticalFlow[0] += eta_k[0];
 				opticalFlow[1] += eta_k[1];
 				opticalflowResidual = abs(eta_k[0] + eta_k[1]);
-				/*
-				Mat eta_k(2, 1, CV_32FC1, cv::Scalar::all(0));
-				eta_k = gradInverse*b_k;
-				opticalFlow[0] += eta_k.at<float>(0, 0);
-				opticalFlow[1] += eta_k.at<float>(1, 0);
-				opticalflowResidual = abs(
-					eta_k.at<float>(0, 0) + 
-					eta_k.at<float>(1, 0)
-					);*/
 			}
 			if (layer == 0)
 			{
