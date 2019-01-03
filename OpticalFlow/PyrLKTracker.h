@@ -18,21 +18,23 @@ private:
 	unsigned int maxLayer;
 	unsigned int windowRadius;
 	bool ifUsePyramid;
+	double accuracyThreshold = 0.00001;
+	int maxIter = 50;
 public:
 	vector<Point2f> featurePoints;
 	vector<Point2f> trackPoints;
 
 private:
 	void buildPyramid(vector<vector<Byte>>&original_gray);
-	void calc(vector<char>&state);
+	void calc(vector<uchar>&state);
 	void getMaxLayer(const int nh, const int nw);
 	void pyramidSample(vector<Byte>&src, const int srcH, const int srcW,
 		vector<Byte>& dst, int&dstH, int&dstW);
 	double interpolator(vector<Byte>&src, int h, int w, const Point2f& point);
 	void matrixInverse(double *pMatrix, double * _pMatrix, int dim);
-	bool matrixMul(double *src1, int height1, int width1, double *src2, int height2, int width2, double *dst);
+	bool matrixMul(double *src1, int h1, int w1, double *src2, int h2, int w2, double *dst);
 public:
-	PyrLKTracker(const int windowRadius, bool usePyr);
+	PyrLKTracker(const int windowRadius, bool usePyr, int maxIter = 50, double threshold = 0.00001);
 	~PyrLKTracker();
 	void init(const int nh, const int nw);
 	void setFirstFrame(vector<Byte>&gray);

@@ -29,7 +29,7 @@ int main(int argc, char** argv)
 	Mat gray, prevGray, image, frame;
 	vector<Point2f> points[2];
 	Mat frame0 = imread("Backyard\\frame07.png");
-	Mat frame1 = imread("Backyard\\frame08.png");
+	Mat frame1 = imread("Backyard\\frame09.png");
 	// 处理第一帧
 	frame0.copyTo(image);
 	cvtColor(image, prevGray, COLOR_BGR2GRAY);
@@ -69,8 +69,11 @@ int main(int argc, char** argv)
 	// 对照组处理
 	vector<uchar> status;
 	vector<float> err;
+	double t = (double)cv::getTickCount();
 	calcOpticalFlowPyrLK(prevGray, gray, points[0], points[1], status, err, winSize,
 		3, termcrit, 0, 0.001);
+	t = ((double)cv::getTickCount() - t) / cv::getTickFrequency();
+	cout << "time:" << t << endl;
 	size_t i, k;
 	for (i = k = 0; i < points[1].size(); i++)
 	{
@@ -85,7 +88,10 @@ int main(int argc, char** argv)
 	Mat imageCompare;
 	image.copyTo(imageCompare);
 	// My LK 处理
+	t = (double)cv::getTickCount();
 	tracker.runOneFrame();
+	t = ((double)cv::getTickCount() - t) / cv::getTickFrequency();
+	cout << "time:" << t << endl;
 	for (size_t i = 0; i < tracker.trackPoints.size(); i++)
 	{
 		line(imageCompare, points[0][i], tracker.trackPoints[i], Scalar(0, 0, 255), 2);

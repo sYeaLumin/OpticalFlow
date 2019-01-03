@@ -1,7 +1,7 @@
 #include "PyrLKTracker.h"
 
-PyrLKTracker::PyrLKTracker(const int windowRadius, bool usePyr)
-	:windowRadius(windowRadius), ifUsePyramid(usePyr)
+PyrLKTracker::PyrLKTracker(const int windowRadius, bool usePyr, int maxIter, double threshold)
+	:windowRadius(windowRadius), ifUsePyramid(usePyr), maxIter(maxIter), accuracyThreshold(threshold)
 {
 
 }
@@ -39,8 +39,8 @@ void  PyrLKTracker::setNextFrame(vector<Byte>&gray)
 	swap(featurePoints, trackPoints);
 }
 
-void PyrLKTracker::pyramidSample(vector<Byte>&src,
-	const int srcH, const int srcW, vector<Byte>& dst, int&dstH, int&dstW)
+void PyrLKTracker::pyramidSample(vector<Byte>&src, const int srcH, const int srcW, 
+	                                                            vector<Byte>& dst, int&dstH, int&dstW)
 {
 	dstH = srcH / 2;
 	dstW = srcW / 2;
@@ -73,6 +73,7 @@ double PyrLKTracker::interpolator(vector<Byte>&src, int h, int w, const Point2f&
 {
 	int floorX = floor(point.x);
 	int floorY = floor(point.y);
+
 	if (floorX < 0 && floorY < 0) {
 		return src[0];
 	}
@@ -107,18 +108,17 @@ void PyrLKTracker::getMaxLayer(const int nh, const int nw)
 {
 	int layer = 0;
 	int windowsize = 2 * windowRadius + 1;
-	int temp = nh > nw ?
-		nw : nh;
-	if (temp > ((1 << 4) * 2 * windowsize))
+	int tmp = nh > nw ? nw : nh;
+	if (tmp > ((1 << 5) * windowsize))
 	{
 		maxLayer = 5;
 		return;
 	}
-	temp = double(temp) / 2;
-	while (temp > 2 * windowsize)
+	tmp = tmp / 2;
+	while (tmp > 2 * windowsize)
 	{
 		layer++;
-		temp = double(temp) / 2;
+		tmp = tmp / 2;
 	}
 	maxLayer = layer;
 }
@@ -126,20 +126,18 @@ void PyrLKTracker::getMaxLayer(const int nh, const int nw)
 void PyrLKTracker::buildPyramid(vector<vector<Byte>>&pyramid)
 {
 	for (int i = 1; i < maxLayer; i++)
-	{
-		pyramidSample(pyramid[i - 1], height[i - 1],
-			width[i - 1], pyramid[i], height[i], width[i]);
-	}
+		pyramidSample(pyramid[i - 1], height[i - 1], width[i - 1], pyramid[i], height[i], width[i]);
 }
 
 void PyrLKTracker::runOneFrame()
 {
-	vector<char> state;
+	vector<uchar> state;
 	calc(state);
 }
 
-void PyrLKTracker::calc(vector<char>&state)
+void PyrLKTracker::calc(vector<uchar>&state)
 {
+	state.resize(featurePoints.size());
 	trackPoints.resize(featurePoints.size());
 	vector<double> derivativeXs;
 	derivativeXs.resize((2 * windowRadius + 1)*(2 * windowRadius + 1));
@@ -150,40 +148,39 @@ void PyrLKTracker::calc(vector<char>&state)
 	{
 		//cout << "featurePoints:" << i << endl;
 		double g[2] = { 0 };
-		double finalopticalflow[2] = { 0 };
+		double finalOpticalFlow[2] = { 0 };
 
 		for (int j = maxLayer - 1; j >= 0; j--)
 		{
 			//cout << "pyramidLayer:" << j << endl;
 			Point2f currPoint;
-			currPoint.x = featurePoints[i].x / pow(2.0, j);
-			currPoint.y = featurePoints[i].y / pow(2.0, j);
-			double Xleft = currPoint.x - windowRadius;
-			double Xright = currPoint.x + windowRadius;
-			double Yleft = currPoint.y - windowRadius;
-			double Yright = currPoint.y + windowRadius;
+			currPoint.x = featurePoints[i].x / (1 << j);
+			currPoint.y = featurePoints[i].y / (1 << j);
+			double xLeft = currPoint.x - windowRadius;
+			double xRight = currPoint.x + windowRadius;
+			double yLeft = currPoint.y - windowRadius;
+			double yRight = currPoint.y + windowRadius;
 
+			int idx = 0;
 			double gradient[4] = { 0 };
-			int cnt = 0;
-			for (double xx = Xleft; xx < Xright + 0.01; xx += 1.0)
-				for (double yy = Yleft; yy < Yright + 0.01; yy += 1.0)
+			for (double xx = xLeft; xx < xRight + 0.01; xx += 1.0)
+				for (double yy = yLeft; yy < yRight + 0.01; yy += 1.0)
 				{
 					assert(xx < 1000 && yy < 1000
 						&& xx >= -(double)windowRadius && yy >= -(double)windowRadius);
-					double derivativeX = interpolator(prePyramid[j],
-						height[j], width[j], Point2f(xx + 1.0, yy)) -
-						interpolator(prePyramid[j], height[j],
-							width[j], Point2f(xx - 1.0, yy));
+					double derivativeX =
+						interpolator(prePyramid[j], height[j], width[j], Point2f(xx + 1.0, yy)) -
+						interpolator(prePyramid[j], height[j], width[j], Point2f(xx - 1.0, yy));
 					derivativeX /= 2.0;
 
-					double t1 = interpolator
-					(prePyramid[j], height[j], width[j], Point2f(xx, yy + 1.0));
-					double t2 = interpolator(prePyramid[j], height[j],
-						width[j], Point2f(xx, yy - 1.0));
-					double derivativeY = (t1 - t2) / 2.0;
+					double derivativeY = 
+						interpolator(prePyramid[j], height[j], width[j], Point2f(xx, yy + 1.0)) -
+						interpolator(prePyramid[j], height[j], width[j], Point2f(xx, yy - 1.0));
+					derivativeY /= 2.0;
 
-					derivativeXs[cnt] = derivativeX;
-					derivativeYs[cnt++] = derivativeY;
+					derivativeXs[idx] = derivativeX;
+					derivativeYs[idx] = derivativeY;
+					idx++;
 					gradient[0] += derivativeX * derivativeX;
 					gradient[1] += derivativeX * derivativeY;
 					gradient[2] += derivativeX * derivativeY;
@@ -192,54 +189,51 @@ void PyrLKTracker::calc(vector<char>&state)
 			double gradientInverse[4] = { 0 };
 			matrixInverse(gradient, gradientInverse, 2);
 
-			double opticalflow[2] = { 0 };
-			int maxIter = 50;
+			double opticalFlow[2] = { 0 };
 			double opticalflowResidual = 1;
 			int iteration = 0;
-			while (iteration<maxIter&&opticalflowResidual>0.00001)
+			while (iteration<maxIter && opticalflowResidual>accuracyThreshold)
 			{
 				iteration++;
-				double mismatch[2] = { 0 };
-				cnt = 0;
-				for (double xx = Xleft; xx < Xright + 0.001; xx += 1.0)
-					for (double yy = Yleft; yy < Yright + 0.001; yy += 1.0)
+				double b_k[2] = { 0 };
+				idx = 0;
+				for (double xx = xLeft; xx < xRight + 0.001; xx += 1.0)
+					for (double yy = yLeft; yy < yRight + 0.001; yy += 1.0)
 					{
-						assert(xx < 1000 && yy < 1000 &&
-							xx >= -(double)windowRadius && yy >= -(double)windowRadius);
-						double nextX = xx + g[0] + opticalflow[0];
-						double nextY = yy + g[1] + opticalflow[1];
-						double pixelDifference = (interpolator(prePyramid[j],
-							height[j], width[j], Point2f(xx, yy))
-							- interpolator(nextPyramid[j], height[j],
-								width[j], Point2f(nextX, nextY)));
-						mismatch[0] += pixelDifference*derivativeXs[cnt];
-						mismatch[1] += pixelDifference*derivativeYs[cnt++];
+						double nextX = xx + g[0] + opticalFlow[0];
+						double nextY = yy + g[1] + opticalFlow[1];
+						double pixelDifference =
+							interpolator(prePyramid[j], height[j], width[j], Point2f(xx, yy)) -
+							interpolator(nextPyramid[j], height[j], width[j], Point2f(nextX, nextY));
+						b_k[0] += pixelDifference*derivativeXs[idx];
+						b_k[1] += pixelDifference*derivativeYs[idx];
+						idx++;
 					}
-				double temp_of[2];
-				matrixMul(gradientInverse, 2, 2, mismatch, 2, 1, temp_of);
-				opticalflow[0] += temp_of[0];
-				opticalflow[1] += temp_of[1];
-				opticalflowResidual = abs(temp_of[0]) + abs(temp_of[1]);
+				double eta_k[2];
+				matrixMul(gradientInverse, 2, 2, b_k, 2, 1, eta_k);
+				opticalFlow[0] += eta_k[0];
+				opticalFlow[1] += eta_k[1];
+				opticalflowResidual = abs(eta_k[0]) + abs(eta_k[1]);
 			}
 			if (j == 0)
 			{
-				finalopticalflow[0] = opticalflow[0];
-				finalopticalflow[1] = opticalflow[1];
+				finalOpticalFlow[0] = opticalFlow[0];
+				finalOpticalFlow[1] = opticalFlow[1];
 			}
 			else
 			{
-				g[0] = 2 * (g[0] + opticalflow[0]);
-				g[1] = 2 * (g[1] + opticalflow[1]);
+				g[0] = 2 * (g[0] + opticalFlow[0]);
+				g[1] = 2 * (g[1] + opticalFlow[1]);
 			}
 		}
-		finalopticalflow[0] += g[0];
-		finalopticalflow[1] += g[1];
-		trackPoints[i].x = featurePoints[i].x + finalopticalflow[0];
-		trackPoints[i].y = featurePoints[i].y + finalopticalflow[1];
+		finalOpticalFlow[0] += g[0];
+		finalOpticalFlow[1] += g[1];
+		trackPoints[i].x = featurePoints[i].x + finalOpticalFlow[0];
+		trackPoints[i].y = featurePoints[i].y + finalOpticalFlow[1];
 	}
 }
 
-//matrix inverse
+
 void PyrLKTracker::matrixInverse(double *pMatrix, double * _pMatrix, int dim)
 {
 	double *tMatrix = new double[2 * dim*dim];
@@ -252,24 +246,22 @@ void PyrLKTracker::matrixInverse(double *pMatrix, double * _pMatrix, int dim)
 			tMatrix[i*dim * 2 + j] = 0.0;
 		tMatrix[i*dim * 2 + dim + i] = 1.0;
 	}
-	//Initialization over!   
-	for (int i = 0; i < dim; i++)//Process Cols   
+   
+	for (int i = 0; i < dim; i++)
 	{
-		double base = tMatrix[i*dim * 2 + i];
-		if (fabs(base) < 1E-300) {
-			assert(false);
-		}
-		for (int j = 0; j < dim; j++)//row   
+		double basic = tMatrix[i*dim * 2 + i];
+		assert(fabs(basic) > 1e-300);
+		for (int j = 0; j < dim; j++)  
 		{
 			if (j == i) continue;
-			double times = tMatrix[j*dim * 2 + i] / base;
-			for (int k = 0; k < dim * 2; k++)//col   
+			double times = tMatrix[j*dim * 2 + i] / basic;
+			for (int k = 0; k < dim * 2; k++)  
 			{
 				tMatrix[j*dim * 2 + k] = tMatrix[j*dim * 2 + k] - times*tMatrix[i*dim * 2 + k];
 			}
 		}
 		for (int k = 0; k < dim * 2; k++) {
-			tMatrix[i*dim * 2 + k] /= base;
+			tMatrix[i*dim * 2 + k] /= basic;
 		}
 	}
 	for (int i = 0; i < dim; i++)
@@ -280,26 +272,26 @@ void PyrLKTracker::matrixInverse(double *pMatrix, double * _pMatrix, int dim)
 	delete[] tMatrix;
 }
 
-bool PyrLKTracker::matrixMul(double *src1, int height1, int width1, double *src2, int height2, int width2, double *dst)
+bool PyrLKTracker::matrixMul(double *src1, int h1, int w1, double *src2, int h2, int w2, double *dst)
 {
 	int i, j, k;
 	double sum = 0;
 	double *first = src1;
 	double *second = src2;
 	double *dest = dst;
-	int Step1 = width1;
-	int Step2 = width2;
+	int Step1 = w1;
+	int Step2 = w2;
 
-	if (src1 == nullptr || src2 == nullptr || dest == nullptr || height2 != width1)
+	if (src1 == nullptr || src2 == nullptr || dest == nullptr || h2 != w1)
 		return false;
 
-	for (j = 0; j < height1; j++)
+	for (j = 0; j < h1; j++)
 	{
-		for (i = 0; i < width2; i++)
+		for (i = 0; i < w2; i++)
 		{
 			sum = 0;
 			second = src2 + i;
-			for (k = 0; k < width1; k++)
+			for (k = 0; k < w1; k++)
 			{
 				sum += first[k] * (*second);
 				second += Step2;
