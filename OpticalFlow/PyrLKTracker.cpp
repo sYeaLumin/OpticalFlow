@@ -210,13 +210,21 @@ void PyrLKTracker::calc(vector<uchar>&states)
 				continue;
 			}
 
+			float gradient[4] = { 0 };
+			gradient[0] = A11;
+			gradient[1] = gradient[2] = A12;
+			gradient[3] = A22;
+			float gradientInverse[4] = { 0 };
+			matrixInverse(gradient, gradientInverse, 2);
+
+			/*
 			Mat grad(2, 2, CV_32FC1, cv::Scalar::all(0));
 			grad.at<float>(0, 0) = A11;
 			grad.at<float>(0, 1) = A12;
 			grad.at<float>(1, 0) = A12;
 			grad.at<float>(1, 1) = A22;
 			Mat gradInverse(2, 2, CV_32FC1, cv::Scalar::all(0));
-			gradInverse = grad.inv();
+			gradInverse = grad.inv();*/
 
 			float opticalFlow[2] = { 0 };
 			float opticalflowResidual = 1;
