@@ -1,7 +1,9 @@
 #include "PyrLKTracker.h"
 
-PyrLKTracker::PyrLKTracker(const int windowRadius, bool usePyr, int maxIter, float threshold)
-	:windowRadius(windowRadius), ifUsePyramid(usePyr), maxIter(maxIter), accuracyThreshold(threshold)
+PyrLKTracker::PyrLKTracker(const int windowRadius, bool usePyr,
+	int maxIter, float accuthreshold, float mineigthreshold) : 
+	windowRadius(windowRadius), ifUsePyramid(usePyr), 
+	maxIter(maxIter), accuracyThreshold(accuthreshold), minEigThreshold(mineigthreshold)
 {
 
 }
@@ -51,15 +53,16 @@ void PyrLKTracker::pyramidSample(vector<Byte>&src, const int srcH, const int src
 		{
 			int srcY = 2 * i + 1;
 			int srcX = 2 * j + 1;
-			float re = src[srcY*srcW + srcX] * 0.25;
-			re += src[(srcY - 1)*srcW + srcX] * 0.125;
-			re += src[(srcY + 1)*srcW + srcX] * 0.125;
-			re += src[srcY*srcW + srcX - 1] * 0.125;
-			re += src[srcY*srcW + srcX + 1] * 0.125;
-			re += src[(srcY - 1)*srcW + srcX + 1] * 0.0625;
-			re += src[(srcY - 1)*srcW + srcX - 1] * 0.0625;
-			re += src[(srcY + 1)*srcW + srcX - 1] * 0.0625;
-			re += src[(srcY + 1)*srcW + srcX + 1] * 0.0625;
+			float re = 0;
+			re += src[srcY*srcW + srcX]					* 0.25;
+			re += src[(srcY - 1)*srcW + srcX]			* 0.125;
+			re += src[(srcY + 1)*srcW + srcX]			* 0.125;
+			re += src[srcY*srcW + srcX - 1]				* 0.125;
+			re += src[srcY*srcW + srcX + 1]			* 0.125;
+			re += src[(srcY - 1)*srcW + srcX + 1]	* 0.0625;
+			re += src[(srcY - 1)*srcW + srcX - 1]		* 0.0625;
+			re += src[(srcY + 1)*srcW + srcX - 1]	* 0.0625;
+			re += src[(srcY + 1)*srcW + srcX + 1]	* 0.0625;
 			dst[i*dstW + j] = re;
 		}
 	for (int i = 0; i < dstH; i++)
@@ -68,7 +71,7 @@ void PyrLKTracker::pyramidSample(vector<Byte>&src, const int srcH, const int src
 		dst[(dstH - 1)*dstW + i] = dst[(dstH - 2)*dstW + i];
 }
 
-//bilinear interplotation
+
 float PyrLKTracker::interpolator(vector<Byte>&src, int h, int w, const Point2f& point)
 {
 	int floorX = floor(point.x);
@@ -199,9 +202,10 @@ void PyrLKTracker::calc(vector<uchar>&states)
 					A12 += derivativeX * derivativeY;
 					A22 += derivativeY * derivativeY;
 				}
+			float D = A11*A22 - A12*A12;
 			float minEig = (A22 + A11 - std::sqrt((A11 - A22)*(A11 - A22) +
 				4.f*A12*A12)) / (2 * derivativeXs.size());
-			if (minEig < 0.001) {
+			if (minEig < minEigThreshold || D < FLT_EPSILON) {
 				if (i == 0 && states[i]) {
 					states[i] = false;
 				}
@@ -273,55 +277,53 @@ void PyrLKTracker::calc(vector<uchar>&states)
 }
 
 
-void PyrLKTracker::matrixInverse(float *pMatrix, float * _pMatrix, int dim)
+void PyrLKTracker::matrixInverse(float *oM, float * iM, int dim)
 {
-	float *tMatrix = new float[2 * dim*dim];
+	float *tmp = new float[2 * dim*dim];
 	for (int i = 0; i < dim; i++) {
 		for (int j = 0; j < dim; j++)
-			tMatrix[i*dim * 2 + j] = pMatrix[i*dim + j];
+			tmp[i*dim * 2 + j] = oM[i*dim + j];
 	}
 	for (int i = 0; i < dim; i++) {
 		for (int j = dim; j < dim * 2; j++)
-			tMatrix[i*dim * 2 + j] = 0.0;
-		tMatrix[i*dim * 2 + dim + i] = 1.0;
+			tmp[i*dim * 2 + j] = 0.0;
+		tmp[i*dim * 2 + dim + i] = 1.0;
 	}
    
 	for (int i = 0; i < dim; i++)
 	{
-		float basic = tMatrix[i*dim * 2 + i];
+		float basic = tmp[i*dim * 2 + i];
 		assert(fabs(basic) > 1e-300);
 		for (int j = 0; j < dim; j++)  
 		{
 			if (j == i) continue;
-			float times = tMatrix[j*dim * 2 + i] / basic;
+			float times = tmp[j*dim * 2 + i] / basic;
 			for (int k = 0; k < dim * 2; k++)  
 			{
-				tMatrix[j*dim * 2 + k] = tMatrix[j*dim * 2 + k] - times*tMatrix[i*dim * 2 + k];
+				tmp[j*dim * 2 + k] = tmp[j*dim * 2 + k] - times*tmp[i*dim * 2 + k];
 			}
 		}
 		for (int k = 0; k < dim * 2; k++) {
-			tMatrix[i*dim * 2 + k] /= basic;
+			tmp[i*dim * 2 + k] /= basic;
 		}
 	}
 	for (int i = 0; i < dim; i++)
 	{
 		for (int j = 0; j < dim; j++)
-			_pMatrix[i*dim + j] = tMatrix[i*dim * 2 + j + dim];
+			iM[i*dim + j] = tmp[i*dim * 2 + j + dim];
 	}
-	delete[] tMatrix;
+	delete[] tmp;
 }
 
 bool PyrLKTracker::matrixMul(float *src1, int h1, int w1, float *src2, int h2, int w2, float *dst)
 {
 	int i, j, k;
 	float sum = 0;
-	float *first = src1;
-	float *second = src2;
-	float *dest = dst;
-	int Step1 = w1;
-	int Step2 = w2;
+	float *m1 = src1;
+	float *m2 = src2;
+	float *mr = dst;
 
-	if (src1 == nullptr || src2 == nullptr || dest == nullptr || h2 != w1)
+	if (src1 == nullptr || src2 == nullptr || mr == nullptr || h2 != w1)
 		return false;
 
 	for (j = 0; j < h1; j++)
@@ -329,16 +331,16 @@ bool PyrLKTracker::matrixMul(float *src1, int h1, int w1, float *src2, int h2, i
 		for (i = 0; i < w2; i++)
 		{
 			sum = 0;
-			second = src2 + i;
+			m2 = src2 + i;
 			for (k = 0; k < w1; k++)
 			{
-				sum += first[k] * (*second);
-				second += Step2;
+				sum += m1[k] * (*m2);
+				m2 += w2;
 			}
-			dest[i] = sum;
+			mr[i] = sum;
 		}
-		first += Step1;
-		dest += Step2;
+		m1 += w1;
+		mr += w2;
 	}
 	return true;
 }
