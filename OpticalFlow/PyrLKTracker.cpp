@@ -158,13 +158,11 @@ void PyrLKTracker::calc(vector<uchar>&states)
 
 	for (int i = 0; i < featurePoints.size(); i++)
 	{
-		//cout << "featurePoints:" << i << endl;
 		float g[2] = { 0 };
 		float finalOpticalFlow[2] = { 0 };
 
 		for (int layer = maxLayer - 1; layer >= 0; layer--)
 		{
-			//cout << "pyramidLayer:" << j << endl;
 			Point2f currPoint;
 			currPoint.x = featurePoints[i].x / (1 << layer);
 			currPoint.y = featurePoints[i].y / (1 << layer);
