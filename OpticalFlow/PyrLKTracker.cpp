@@ -1,6 +1,6 @@
 #include "PyrLKTracker.h"
 
-PyrLKTracker::PyrLKTracker(const int windowRadius, bool usePyr, int maxIter, double threshold)
+PyrLKTracker::PyrLKTracker(const int windowRadius, bool usePyr, int maxIter, float threshold)
 	:windowRadius(windowRadius), ifUsePyramid(usePyr), maxIter(maxIter), accuracyThreshold(threshold)
 {
 
@@ -51,7 +51,7 @@ void PyrLKTracker::pyramidSample(vector<Byte>&src, const int srcH, const int src
 		{
 			int srcY = 2 * i + 1;
 			int srcX = 2 * j + 1;
-			double re = src[srcY*srcW + srcX] * 0.25;
+			float re = src[srcY*srcW + srcX] * 0.25;
 			re += src[(srcY - 1)*srcW + srcX] * 0.125;
 			re += src[(srcY + 1)*srcW + srcX] * 0.125;
 			re += src[srcY*srcW + srcX - 1] * 0.125;
@@ -69,7 +69,7 @@ void PyrLKTracker::pyramidSample(vector<Byte>&src, const int srcH, const int src
 }
 
 //bilinear interplotation
-double PyrLKTracker::interpolator(vector<Byte>&src, int h, int w, const Point2f& point)
+float PyrLKTracker::interpolator(vector<Byte>&src, int h, int w, const Point2f& point)
 {
 	int floorX = floor(point.x);
 	int floorY = floor(point.y);
@@ -80,9 +80,9 @@ double PyrLKTracker::interpolator(vector<Byte>&src, int h, int w, const Point2f&
 	if (floorX >= w - 1 && floorY >= h - 1) {
 		return src.back();
 	}
-	double fractX = point.x - floorX;
-	double fractY = point.y - floorY;
-	double ceilX, ceilY;
+	float fractX = point.x - floorX;
+	float fractY = point.y - floorY;
+	float ceilX, ceilY;
 	if (floorX < 0)
 		floorX = ceilX = 0;
 	else if (floorX >= w - 1)
@@ -133,10 +133,16 @@ void PyrLKTracker::runOneFrame()
 {
 	vector<uchar> states;
 	calc(states);
-	for (const auto&state : states) {
-		if (!state)
-			cout << "F";
+	vector<Point2f> tureFeaturePoints;
+	vector<Point2f> tureTrackPoints;
+	for (size_t i = 0; i < states.size(); i++) {
+		if (states[i]) {
+			tureFeaturePoints.push_back(featurePoints[i]);
+			tureTrackPoints.push_back(trackPoints[i]);
+		}
 	}
+	swap(tureFeaturePoints, featurePoints);
+	swap(tureTrackPoints, trackPoints);
 }
 
 void PyrLKTracker::calc(vector<uchar>&states)
@@ -145,95 +151,115 @@ void PyrLKTracker::calc(vector<uchar>&states)
 	for (auto &state : states) 
 		state = true;
 	trackPoints.resize(featurePoints.size());
-	vector<double> derivativeXs;
+	vector<float> derivativeXs;
 	derivativeXs.resize((2 * windowRadius + 1)*(2 * windowRadius + 1));
-	vector<double> derivativeYs;
+	vector<float> derivativeYs;
 	derivativeYs.resize((2 * windowRadius + 1)*(2 * windowRadius + 1));
 
 	for (int i = 0; i < featurePoints.size(); i++)
 	{
 		//cout << "featurePoints:" << i << endl;
-		double g[2] = { 0 };
-		double finalOpticalFlow[2] = { 0 };
+		float g[2] = { 0 };
+		float finalOpticalFlow[2] = { 0 };
 
-		for (int j = maxLayer - 1; j >= 0; j--)
+		for (int layer = maxLayer - 1; layer >= 0; layer--)
 		{
 			//cout << "pyramidLayer:" << j << endl;
 			Point2f currPoint;
-			currPoint.x = featurePoints[i].x / (1 << j);
-			currPoint.y = featurePoints[i].y / (1 << j);
-			double xLeft = currPoint.x - windowRadius;
-			double xRight = currPoint.x + windowRadius;
-			double yLeft = currPoint.y - windowRadius;
-			double yRight = currPoint.y + windowRadius;
+			currPoint.x = featurePoints[i].x / (1 << layer);
+			currPoint.y = featurePoints[i].y / (1 << layer);
+			float xLeft = currPoint.x - windowRadius;
+			float xRight = currPoint.x + windowRadius;
+			float yLeft = currPoint.y - windowRadius;
+			float yRight = currPoint.y + windowRadius;
 
 			int idx = 0;
-			Mat grad(2, 2, CV_64FC1, cv::Scalar::all(0));
-			//double gradient[4] = { 0 };
-			for (double xx = xLeft; xx < xRight + 0.01; xx += 1.0)
-				for (double yy = yLeft; yy < yRight + 0.01; yy += 1.0)
+			float A11 = 0; 
+			float A12 = 0; 
+			float A22 = 0;
+			for (float xx = xLeft; xx < xRight + 0.01; xx += 1.0)
+				for (float yy = yLeft; yy < yRight + 0.01; yy += 1.0)
 				{
-					assert(xx < 1000 && yy < 1000
-						&& xx >= -(double)windowRadius && yy >= -(double)windowRadius);
-					double derivativeX =
-						interpolator(prePyramid[j], height[j], width[j], Point2f(xx + 1.0, yy)) -
-						interpolator(prePyramid[j], height[j], width[j], Point2f(xx - 1.0, yy));
+					assert(xx < width[layer] + (float)windowRadius 
+						&& yy < height[layer] + (float)windowRadius
+						&& xx >= -(float)windowRadius 
+						&& yy >= -(float)windowRadius);
+					float derivativeX =
+						interpolator(prePyramid[layer], height[layer], width[layer], Point2f(xx + 1.0, yy)) -
+						interpolator(prePyramid[layer], height[layer], width[layer], Point2f(xx - 1.0, yy));
 					derivativeX /= 2.0;
 
-					double derivativeY = 
-						interpolator(prePyramid[j], height[j], width[j], Point2f(xx, yy + 1.0)) -
-						interpolator(prePyramid[j], height[j], width[j], Point2f(xx, yy - 1.0));
+					float derivativeY = 
+						interpolator(prePyramid[layer], height[layer], width[layer], Point2f(xx, yy + 1.0)) -
+						interpolator(prePyramid[layer], height[layer], width[layer], Point2f(xx, yy - 1.0));
 					derivativeY /= 2.0;
 
 					derivativeXs[idx] = derivativeX;
 					derivativeYs[idx] = derivativeY;
 					idx++;
-					grad.at<double>(0, 0) += derivativeX * derivativeX;
-					grad.at<double>(0, 1) += derivativeX * derivativeY;
-					grad.at<double>(1, 0) += derivativeX * derivativeY;
-					grad.at<double>(1, 1) += derivativeY * derivativeY;
+					A11 += derivativeX * derivativeX;
+					A12 += derivativeX * derivativeY;
+					A22 += derivativeY * derivativeY;
 				}
-			Mat gradInverse(2, 2, CV_64FC1, cv::Scalar::all(0));
-			gradInverse = grad.inv();
-			Mat eValues, eVectors;
-			cv::eigen(grad, eValues, eVectors);
-			if (eValues.at<double>(1, 0) < 0.001) {
+			float minEig = (A22 + A11 - std::sqrt((A11 - A22)*(A11 - A22) +
+				4.f*A12*A12)) / (2 * derivativeXs.size());
+			if (minEig < 0.001) {
 				if (i == 0 && states[i]) {
 					states[i] = false;
 				}
 				continue;
 			}
 
-			double opticalFlow[2] = { 0 };
-			double opticalflowResidual = 1;
+			Mat grad(2, 2, CV_32FC1, cv::Scalar::all(0));
+			grad.at<float>(0, 0) = A11;
+			grad.at<float>(0, 1) = A12;
+			grad.at<float>(1, 0) = A12;
+			grad.at<float>(1, 1) = A22;
+			Mat gradInverse(2, 2, CV_32FC1, cv::Scalar::all(0));
+			gradInverse = grad.inv();
+
+			float opticalFlow[2] = { 0 };
+			float opticalflowResidual = 1;
 			int iteration = 0;
 			while (iteration<maxIter && opticalflowResidual>accuracyThreshold)
 			{
 				iteration++;
-				Mat b_k(2, 1, CV_64FC1, cv::Scalar::all(0));
+				if (xRight + g[0] + opticalFlow[0] >= width[layer] + (float)windowRadius
+					|| yRight + g[1] + opticalFlow[1] >= height[layer] + (float)windowRadius
+					|| xLeft + g[0] + opticalFlow[0] < -(float)windowRadius
+					|| yLeft + g[1] + opticalFlow[1] < -(float)windowRadius) {
+					if (layer == 0 && states[i])
+						states[i] = false;
+					break;
+				}
+				Mat b_k(2, 1, CV_32FC1, cv::Scalar::all(0));
 				idx = 0;
-				for (double xx = xLeft; xx < xRight + 0.001; xx += 1.0)
-					for (double yy = yLeft; yy < yRight + 0.001; yy += 1.0)
+				for (float xx = xLeft; xx < xRight + 0.001; xx += 1.0)
+					for (float yy = yLeft; yy < yRight + 0.001; yy += 1.0)
 					{
-						double nextX = xx + g[0] + opticalFlow[0];
-						double nextY = yy + g[1] + opticalFlow[1];
-						double pixelDifference =
-							interpolator(prePyramid[j], height[j], width[j], Point2f(xx, yy)) -
-							interpolator(nextPyramid[j], height[j], width[j], Point2f(nextX, nextY));
-						b_k.at<double>(0, 0) += pixelDifference*derivativeXs[idx];
-						b_k.at<double>(1, 0) += pixelDifference*derivativeYs[idx];
+						float nextX = xx + g[0] + opticalFlow[0];
+						float nextY = yy + g[1] + opticalFlow[1];
+						assert(nextX < width[layer] + (float)windowRadius 
+							&& nextY < height[layer] + (float)windowRadius
+							&& nextX >= -(float)windowRadius 
+							&& nextY >= -(float)windowRadius);
+						float pixelDifference =
+							interpolator(prePyramid[layer], height[layer], width[layer], Point2f(xx, yy)) -
+							interpolator(nextPyramid[layer], height[layer], width[layer], Point2f(nextX, nextY));
+						b_k.at<float>(0, 0) += pixelDifference*derivativeXs[idx];
+						b_k.at<float>(1, 0) += pixelDifference*derivativeYs[idx];
 						idx++;
 					}
-				Mat eta_k(2, 1, CV_64FC1, cv::Scalar::all(0));
+				Mat eta_k(2, 1, CV_32FC1, cv::Scalar::all(0));
 				eta_k = gradInverse*b_k;
-				opticalFlow[0] += eta_k.at<double>(0, 0);
-				opticalFlow[1] += eta_k.at<double>(1, 0);
+				opticalFlow[0] += eta_k.at<float>(0, 0);
+				opticalFlow[1] += eta_k.at<float>(1, 0);
 				opticalflowResidual = abs(
-					eta_k.at<double>(0, 0) + 
-					eta_k.at<double>(1, 0)
+					eta_k.at<float>(0, 0) + 
+					eta_k.at<float>(1, 0)
 					);
 			}
-			if (j == 0)
+			if (layer == 0)
 			{
 				finalOpticalFlow[0] = opticalFlow[0];
 				finalOpticalFlow[1] = opticalFlow[1];
@@ -252,9 +278,9 @@ void PyrLKTracker::calc(vector<uchar>&states)
 }
 
 
-void PyrLKTracker::matrixInverse(double *pMatrix, double * _pMatrix, int dim)
+void PyrLKTracker::matrixInverse(float *pMatrix, float * _pMatrix, int dim)
 {
-	double *tMatrix = new double[2 * dim*dim];
+	float *tMatrix = new float[2 * dim*dim];
 	for (int i = 0; i < dim; i++) {
 		for (int j = 0; j < dim; j++)
 			tMatrix[i*dim * 2 + j] = pMatrix[i*dim + j];
@@ -267,12 +293,12 @@ void PyrLKTracker::matrixInverse(double *pMatrix, double * _pMatrix, int dim)
    
 	for (int i = 0; i < dim; i++)
 	{
-		double basic = tMatrix[i*dim * 2 + i];
+		float basic = tMatrix[i*dim * 2 + i];
 		assert(fabs(basic) > 1e-300);
 		for (int j = 0; j < dim; j++)  
 		{
 			if (j == i) continue;
-			double times = tMatrix[j*dim * 2 + i] / basic;
+			float times = tMatrix[j*dim * 2 + i] / basic;
 			for (int k = 0; k < dim * 2; k++)  
 			{
 				tMatrix[j*dim * 2 + k] = tMatrix[j*dim * 2 + k] - times*tMatrix[i*dim * 2 + k];
@@ -290,13 +316,13 @@ void PyrLKTracker::matrixInverse(double *pMatrix, double * _pMatrix, int dim)
 	delete[] tMatrix;
 }
 
-bool PyrLKTracker::matrixMul(double *src1, int h1, int w1, double *src2, int h2, int w2, double *dst)
+bool PyrLKTracker::matrixMul(float *src1, int h1, int w1, float *src2, int h2, int w2, float *dst)
 {
 	int i, j, k;
-	double sum = 0;
-	double *first = src1;
-	double *second = src2;
-	double *dest = dst;
+	float sum = 0;
+	float *first = src1;
+	float *second = src2;
+	float *dest = dst;
 	int Step1 = w1;
 	int Step2 = w2;
 

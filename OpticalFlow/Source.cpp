@@ -29,7 +29,7 @@ int main(int argc, char** argv)
 	Mat gray, prevGray, image, frame;
 	vector<Point2f> points[2];
 	Mat frame0 = imread("Backyard\\frame07.png");
-	Mat frame1 = imread("Backyard\\frame09.png");
+	Mat frame1 = imread("Backyard\\frame08.png");
 	// 处理第一帧
 	frame0.copyTo(image);
 	cvtColor(image, prevGray, COLOR_BGR2GRAY);
@@ -93,9 +93,10 @@ int main(int argc, char** argv)
 	tracker.runOneFrame();
 	t = ((double)cv::getTickCount() - t) / cv::getTickFrequency();
 	cout << "time:" << t << endl;
+	cout << tracker.trackPoints.size() << endl;
 	for (size_t i = 0; i < tracker.trackPoints.size(); i++)
 	{
-		line(imageCompare, points[0][i], tracker.trackPoints[i], Scalar(0, 0, 255), 2);
+		line(imageCompare, tracker.featurePoints[i], tracker.trackPoints[i], Scalar(0, 0, 255), 2);
 	}
 	imshow("My LK", imageCompare);
 	waitKey(0);
