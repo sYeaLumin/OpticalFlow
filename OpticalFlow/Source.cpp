@@ -83,6 +83,7 @@ int main(int argc, char** argv)
 		line(image, points[0][i], points[1][i], Scalar(0, 255, 0), 2);
 	}
 	points[1].resize(k);
+	cout << points[1].size() << endl;
 	imshow("LK Demo", image);
 
 	Mat imageCompare;

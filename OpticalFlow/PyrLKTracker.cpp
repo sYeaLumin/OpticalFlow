@@ -131,13 +131,19 @@ void PyrLKTracker::buildPyramid(vector<vector<Byte>>&pyramid)
 
 void PyrLKTracker::runOneFrame()
 {
-	vector<uchar> state;
-	calc(state);
+	vector<uchar> states;
+	calc(states);
+	for (const auto&state : states) {
+		if (!state)
+			cout << "F";
+	}
 }
 
-void PyrLKTracker::calc(vector<uchar>&state)
+void PyrLKTracker::calc(vector<uchar>&states)
 {
-	state.resize(featurePoints.size());
+	states.resize(featurePoints.size());
+	for (auto &state : states) 
+		state = true;
 	trackPoints.resize(featurePoints.size());
 	vector<double> derivativeXs;
 	derivativeXs.resize((2 * windowRadius + 1)*(2 * windowRadius + 1));
@@ -162,7 +168,8 @@ void PyrLKTracker::calc(vector<uchar>&state)
 			double yRight = currPoint.y + windowRadius;
 
 			int idx = 0;
-			double gradient[4] = { 0 };
+			Mat grad(2, 2, CV_64FC1, cv::Scalar::all(0));
+			//double gradient[4] = { 0 };
 			for (double xx = xLeft; xx < xRight + 0.01; xx += 1.0)
 				for (double yy = yLeft; yy < yRight + 0.01; yy += 1.0)
 				{
@@ -181,13 +188,21 @@ void PyrLKTracker::calc(vector<uchar>&state)
 					derivativeXs[idx] = derivativeX;
 					derivativeYs[idx] = derivativeY;
 					idx++;
-					gradient[0] += derivativeX * derivativeX;
-					gradient[1] += derivativeX * derivativeY;
-					gradient[2] += derivativeX * derivativeY;
-					gradient[3] += derivativeY * derivativeY;
+					grad.at<double>(0, 0) += derivativeX * derivativeX;
+					grad.at<double>(0, 1) += derivativeX * derivativeY;
+					grad.at<double>(1, 0) += derivativeX * derivativeY;
+					grad.at<double>(1, 1) += derivativeY * derivativeY;
 				}
-			double gradientInverse[4] = { 0 };
-			matrixInverse(gradient, gradientInverse, 2);
+			Mat gradInverse(2, 2, CV_64FC1, cv::Scalar::all(0));
+			gradInverse = grad.inv();
+			Mat eValues, eVectors;
+			cv::eigen(grad, eValues, eVectors);
+			if (eValues.at<double>(1, 0) < 0.001) {
+				if (i == 0 && states[i]) {
+					states[i] = false;
+				}
+				continue;
+			}
 
 			double opticalFlow[2] = { 0 };
 			double opticalflowResidual = 1;
@@ -195,7 +210,7 @@ void PyrLKTracker::calc(vector<uchar>&state)
 			while (iteration<maxIter && opticalflowResidual>accuracyThreshold)
 			{
 				iteration++;
-				double b_k[2] = { 0 };
+				Mat b_k(2, 1, CV_64FC1, cv::Scalar::all(0));
 				idx = 0;
 				for (double xx = xLeft; xx < xRight + 0.001; xx += 1.0)
 					for (double yy = yLeft; yy < yRight + 0.001; yy += 1.0)
@@ -205,15 +220,18 @@ void PyrLKTracker::calc(vector<uchar>&state)
 						double pixelDifference =
 							interpolator(prePyramid[j], height[j], width[j], Point2f(xx, yy)) -
 							interpolator(nextPyramid[j], height[j], width[j], Point2f(nextX, nextY));
-						b_k[0] += pixelDifference*derivativeXs[idx];
-						b_k[1] += pixelDifference*derivativeYs[idx];
+						b_k.at<double>(0, 0) += pixelDifference*derivativeXs[idx];
+						b_k.at<double>(1, 0) += pixelDifference*derivativeYs[idx];
 						idx++;
 					}
-				double eta_k[2];
-				matrixMul(gradientInverse, 2, 2, b_k, 2, 1, eta_k);
-				opticalFlow[0] += eta_k[0];
-				opticalFlow[1] += eta_k[1];
-				opticalflowResidual = abs(eta_k[0]) + abs(eta_k[1]);
+				Mat eta_k(2, 1, CV_64FC1, cv::Scalar::all(0));
+				eta_k = gradInverse*b_k;
+				opticalFlow[0] += eta_k.at<double>(0, 0);
+				opticalFlow[1] += eta_k.at<double>(1, 0);
+				opticalflowResidual = abs(
+					eta_k.at<double>(0, 0) + 
+					eta_k.at<double>(1, 0)
+					);
 			}
 			if (j == 0)
 			{

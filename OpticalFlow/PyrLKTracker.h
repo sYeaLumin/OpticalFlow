@@ -6,6 +6,7 @@
 #include <vector>
 typedef unsigned char Byte;
 using cv::Point2f;
+using cv::Mat;
 using std::vector;
 using std::cout;
 class PyrLKTracker
