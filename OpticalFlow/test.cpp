@@ -28,8 +28,8 @@ int main(int argc, char** argv)
 	setMouseCallback("LK Demo", onMouse, 0);
 	Mat gray, prevGray, image, frame;
 	vector<Point2f> points[2];
-	Mat frame0 = imread("Backyard\\frame07.png");
-	Mat frame1 = imread("Backyard\\frame09.png");
+	Mat frame0 = imread("Evergreen\\frame07.png");
+	Mat frame1 = imread("Evergreen\\frame09.png");
 	// 处理第一帧
 	frame0.copyTo(image);
 	cvtColor(image, prevGray, COLOR_BGR2GRAY);
@@ -88,11 +88,13 @@ int main(int argc, char** argv)
 		if (!status[i])
 			continue;
 		points[1][k++] = points[1][i];
-		line(image, points[0][i], points[1][i], Scalar(0, 255, 0), 2);
+		circle(image, points[1][i], 3, Scalar(0, 255, 0), -1);
+		line(image, points[0][i], points[1][i], Scalar(0, 255, 0), 1);
 	}
 	points[1].resize(k);
 	cout << points[1].size() << endl;
 	imshow("LK Demo", image);
+	imwrite("OpencvResult.png", image);
 
 	Mat imageCompare;
 	image.copyTo(imageCompare);
@@ -109,9 +111,11 @@ int main(int argc, char** argv)
 		if (dist > 40000) {
 			cout  << i << " dist:" << dist << endl;
 		}
-		line(imageCompare, tracker.featurePoints[i], tracker.trackPoints[i], Scalar(0, 0, 255), 2);
+		circle(imageCompare, tracker.trackPoints[i], 3, Scalar(0, 0, 255), -1);
+		line(imageCompare, tracker.featurePoints[i], tracker.trackPoints[i], Scalar(0, 0, 255), 1);
 	}
 	imshow("My LK", imageCompare);
+	imwrite("MyResult.png", imageCompare);
 	waitKey(0);
 	return 0;
 }

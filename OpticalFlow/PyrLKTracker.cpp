@@ -41,6 +41,14 @@ void  PyrLKTracker::setNextFrame(vector<Byte>&gray)
 	swap(featurePoints, trackPoints);
 }
 
+// 建立图像金字塔
+void PyrLKTracker::buildPyramid(vector<vector<Byte>>&pyramid)
+{
+	for (int i = 1; i < maxLayer; i++)
+		pyramidSample(pyramid[i - 1], height[i - 1], width[i - 1], pyramid[i], height[i], width[i]);
+}
+
+// 金字塔滤波采样
 void PyrLKTracker::pyramidSample(vector<Byte>&src, const int srcH, const int srcW, 
 	                                                            vector<Byte>& dst, int&dstH, int&dstW)
 {
@@ -48,6 +56,7 @@ void PyrLKTracker::pyramidSample(vector<Byte>&src, const int srcH, const int src
 	dstW = srcW / 2;
 	assert(dstW > 3 && dstH > 3);
 	dst.resize(dstH*dstW);
+	// 低通滤波
 	for (int i = 0; i < dstH - 1; i++)
 		for (int j = 0; j < dstW - 1; j++)
 		{
@@ -126,12 +135,6 @@ void PyrLKTracker::getMaxLayer(const int nh, const int nw)
 	maxLayer = layer;
 }
 
-void PyrLKTracker::buildPyramid(vector<vector<Byte>>&pyramid)
-{
-	for (int i = 1; i < maxLayer; i++)
-		pyramidSample(pyramid[i - 1], height[i - 1], width[i - 1], pyramid[i], height[i], width[i]);
-}
-
 void PyrLKTracker::runOneFrame()
 {
 	vector<uchar> states;
@@ -173,6 +176,7 @@ void PyrLKTracker::calc(vector<uchar>&states)
 			float yLeft = currPoint.y - windowRadius;
 			float yRight = currPoint.y + windowRadius;
 
+			// 计算空间梯度矩阵
 			int idx = 0;
 			float A11 = 0; 
 			float A12 = 0; 
@@ -202,33 +206,33 @@ void PyrLKTracker::calc(vector<uchar>&states)
 					A22 += derivativeY * derivativeY;
 				}
 			
-			float gradient[4] = { 0 };
-			gradient[0] = A11;
-			gradient[1] = gradient[2] = A12;
-			gradient[3] = A22;
-			const float FLT_SCALE = 1.f / (1 << 10);
-			A11 *= FLT_SCALE;
-			A12 *= FLT_SCALE;
-			A22 *= FLT_SCALE;
+			// 当空间梯度矩阵特征值过小或无法求逆，判断该特征点求解光流失败
 			float D = A11*A22 - A12*A12;
 			float minEig = (A22 + A11 - std::sqrt((A11 - A22)*(A11 - A22) +
 				4.f*A12*A12)) / (2 * derivativeXs.size());
-			//std::cout << i << "\tminEig\t" << minEig << std::endl;
 			if (minEig < minEigThreshold || D < FLT_EPSILON) {
 				if (i == 0 && states[i]) {
 					states[i] = false;
 				}
 				continue;
 			}
+			
+			// 空间梯度矩阵求逆
+			float gradient[4] = { 0 };
+			gradient[0] = A11;
+			gradient[1] = gradient[2] = A12;
+			gradient[3] = A22;
 			float gradientInverse[4] = { 0 };
 			matrixInverse(gradient, gradientInverse, 2);
 
+			// 迭代求解
 			float opticalFlow[2] = { 0 };
 			float opticalflowResidual = 1;
 			int iteration = 0;
 			while (iteration<maxIter && opticalflowResidual>accuracyThreshold)
 			{
 				iteration++;
+				// 超出范围，判断该特征点求解光流失败
 				if (xRight + g[0] + opticalFlow[0] >= width[layer] + (float)windowRadius
 					|| yRight + g[1] + opticalFlow[1] >= height[layer] + (float)windowRadius
 					|| xLeft + g[0] + opticalFlow[0] < -(float)windowRadius
@@ -238,6 +242,7 @@ void PyrLKTracker::calc(vector<uchar>&states)
 					break;
 				}
 
+				// 计算 Image mismatch vector
 				float b_k[2] = { 0 };
 				idx = 0;
 				for (float xx = xLeft; xx < xRight + 0.001; xx += 1.0)
@@ -259,12 +264,14 @@ void PyrLKTracker::calc(vector<uchar>&states)
 
 				float eta_k[2];
 				matrixMul(gradientInverse, 2, 2, b_k, 2, 1, eta_k);
+				// 下一轮迭代的猜测光流
 				opticalFlow[0] += eta_k[0];
 				opticalFlow[1] += eta_k[1];
 				opticalflowResidual = abs(eta_k[0] + eta_k[1]);
 			}
 			// TODO:假设验证
-			if (fabs(opticalFlow[0]) > windowRadius || fabs(opticalFlow[1]) > windowRadius) {
+			if (fabs(opticalFlow[0]) > 2 * windowRadius 
+				|| fabs(opticalFlow[1]) > 2 * windowRadius) {
 				if (layer == 0 && states[i])
 					states[i] = false;
 				continue;

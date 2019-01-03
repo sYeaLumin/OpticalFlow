@@ -101,7 +101,7 @@ int main(int argc, char** argv)
 				if (!status[i])
 					continue;
 				compareFeaturePoints[1][k++] = compareFeaturePoints[1][i];
-				circle(image, compareFeaturePoints[1][i], 3, Scalar(0, 255, 0), -1, 2);
+				circle(image, compareFeaturePoints[1][i], 3, Scalar(0, 255, 0), -1);
 				line(image, compareFeaturePoints[0][i], compareFeaturePoints[1][i], Scalar(0, 255, 0), 1);
 			}
 			compareFeaturePoints[1].resize(k);
@@ -119,7 +119,7 @@ int main(int argc, char** argv)
 			tracker.runOneFrame();
 			for (size_t i = 0; i < tracker.trackPoints.size(); i++)
 			{
-				circle(image, tracker.trackPoints[i], 3, Scalar(0, 0, 255), -1, 2);
+				circle(image, tracker.trackPoints[i], 3, Scalar(0, 0, 255), -1);
 				line(image, tracker.featurePoints[i], tracker.trackPoints[i], Scalar(0, 0, 255), 1);
 			}
 		}
